@@ -110,22 +110,22 @@ export async function sanitizeSessionMessagesImages(
             // or if it's clearly a metadata block insertion.
             // Using replaceAll to catch multiple blocks if they stacked up.
             const cleanedText = rec.text.replace(metadataRegex, "").trim();
-            // If the text became empty after stripping (and it wasn't empty before),
-            // it means it was PURE metadata. We might want to filter this block out entirely,
-            // or keep it as empty text if that's safer.
-            // However, usually there is user text AFTER the metadata.
-            // If cleanedText is empty, it means the user sent NO text (e.g. only image, or empty).
+            // If the text became empty after stripping but wasn't empty before,
+            // it means it was PURE metadata. We keep it as a placeholder or empty string
+            // rather than letting the filter drop the entire turn.
             return { ...block, text: cleanedText };
           })
           .filter((block: ContentBlock) => {
-            // Filter out empty text blocks that resulted from stripping
             if (!block || typeof block !== "object") {
               return true;
             }
             const rec = block as { type?: unknown; text?: unknown };
+            // We only filter out blocks that were ALREADY empty before sanitization,
+            // or if they are just artifactual empty strings.
             if (
               rec.type === "text" &&
-              (!rec.text || (typeof rec.text === "string" && rec.text.trim() === ""))
+              rec.text === "" &&
+              content.length > 1 // Only filter if there are other blocks (like images)
             ) {
               return false;
             }

@@ -4,6 +4,7 @@ import { streamSimple } from "@mariozechner/pi-ai";
 import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
 import fs from "node:fs/promises";
 import os from "node:os";
+import path from "node:path";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
@@ -904,10 +905,17 @@ export async function runEmbeddedAttempt(
 
       // --- ARCHIVE LOGIC START ---
       try {
+        const { resolveRequiredHomeDir } = await import("../../../infra/home-dir.js");
         const sessionKeySafe = (params.sessionKey ?? params.sessionId).replace(/[:/]/g, "_");
-        const archiveDir = "archive/sessions";
+        const archiveDir = path.join(
+          resolveRequiredHomeDir(),
+          ".openclaw",
+          "workspace",
+          "archive",
+          "sessions",
+        );
         await fs.mkdir(archiveDir, { recursive: true });
-        const archiveFile = `${archiveDir}/${sessionKeySafe}.md`;
+        const archiveFile = path.join(archiveDir, `${sessionKeySafe}.md`);
 
         const timestamp = new Date().toISOString();
         let logEntry = "";
@@ -918,20 +926,30 @@ export async function runEmbeddedAttempt(
           .toReversed()
           .find((m) => m.role === "user");
 
+        // Regex to strip metadata blocks from user messages
+        const metadataRegex =
+          /(?:Conversation info|Sender|Thread starter|Replied message|Forwarded message context|Chat history since last reply) \(untrusted(?: metadata|,\s+for\s+context)\):\n```json\n[\s\S]*?\n```\n*/g;
+
         if (lastUserMsg && typeof lastUserMsg.content === "string") {
-          logEntry += `\n## [${timestamp}] User\n${lastUserMsg.content}\n`;
+          const cleanText = lastUserMsg.content.replace(metadataRegex, "").trim();
+          if (cleanText) {
+            logEntry += `\n## [${timestamp}] User\n${cleanText}\n`;
+          }
         } else if (lastUserMsg && Array.isArray(lastUserMsg.content)) {
           const textParts = lastUserMsg.content
             .filter((c): c is { type: "text"; text: string } => c.type === "text")
             .map((c) => c.text)
             .join("\n");
           if (textParts) {
-            logEntry += `\n## [${timestamp}] User\n${textParts}\n`;
+            const cleanText = textParts.replace(metadataRegex, "").trim();
+            if (cleanText) {
+              logEntry += `\n## [${timestamp}] User\n${cleanText}\n`;
+            }
           }
         }
 
         if (lastAssistant && typeof lastAssistant.content === "string") {
-          logEntry += `\n## [${timestamp}] Assistant\n${lastAssistant.content}\n`;
+          logEntry += `\n## [${timestamp}] Assistant\n${String(lastAssistant.content)}\n`;
         } else if (lastAssistant && Array.isArray(lastAssistant.content)) {
           const textParts = lastAssistant.content
             .filter((c): c is { type: "text"; text: string } => c.type === "text")
@@ -946,7 +964,7 @@ export async function runEmbeddedAttempt(
           await fs.appendFile(archiveFile, logEntry);
         }
       } catch (archiveErr) {
-        log.warn(`Failed to archive session turn: ${archiveErr}`);
+        log.warn(`Failed to archive session turn: ${String(archiveErr)}`);
       }
       // --- ARCHIVE LOGIC END ---
 
