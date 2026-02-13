@@ -24,8 +24,6 @@ export type ResolvedBrowserConfig = {
   cdpIsLoopback: boolean;
   remoteCdpTimeoutMs: number;
   remoteCdpHandshakeTimeoutMs: number;
-  preflightScript?: string;
-  preflightTimeoutMs?: number;
   color: string;
   executablePath?: string;
   headless: boolean;
@@ -151,8 +149,6 @@ export function resolveBrowserConfig(
     cfg?.remoteCdpHandshakeTimeoutMs,
     Math.max(2000, remoteCdpTimeoutMs * 2),
   );
-  const preflightScript = cfg?.preflightScript?.trim() || undefined;
-  const preflightTimeoutMs = normalizeTimeoutMs(cfg?.preflightTimeoutMs, 45_000);
 
   const derivedCdpRange = deriveDefaultBrowserCdpPortRange(controlPort);
 
@@ -209,8 +205,6 @@ export function resolveBrowserConfig(
     cdpIsLoopback: isLoopbackHost(cdpInfo.parsed.hostname),
     remoteCdpTimeoutMs,
     remoteCdpHandshakeTimeoutMs,
-    preflightScript,
-    preflightTimeoutMs,
     color: defaultColor,
     executablePath,
     headless,

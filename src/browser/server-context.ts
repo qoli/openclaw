@@ -23,7 +23,6 @@ import {
   stopChromeExtensionRelayServer,
 } from "./extension-relay.js";
 import { getPwAiModule } from "./pw-ai-module.js";
-import { runExec } from "../process/exec.js";
 import { resolveTargetIdFromTabs } from "./target-id.js";
 import { movePathToTrash } from "./trash.js";
 
@@ -77,11 +76,6 @@ async function fetchOk(url: string, timeoutMs = 1500, init?: RequestInit): Promi
   } finally {
     clearTimeout(t);
   }
-}
-
-function extractExecStderr(err: unknown): string {
-  const stderr = (err as { stderr?: unknown })?.stderr;
-  return typeof stderr === "string" ? stderr.trim() : "";
 }
 
 /**
@@ -264,27 +258,6 @@ function createProfileContext(
     return await isChromeReachable(profile.cdpUrl, httpTimeout);
   };
 
-  const runBrowserPreflight = async (): Promise<void> => {
-    const current = state();
-    const scriptPath = current.resolved.preflightScript;
-    if (!scriptPath) {
-      return;
-    }
-
-    try {
-      await runExec(scriptPath, [], {
-        timeoutMs: current.resolved.preflightTimeoutMs ?? 45_000,
-        maxBuffer: 200_000,
-      });
-    } catch (err) {
-      const stderr = extractExecStderr(err);
-      const detail = stderr ? ` stderr: ${stderr.slice(0, 400)}` : ` ${String(err)}`;
-      throw new Error(
-        `Browser preflight script failed for profile "${profile.name}" (${scriptPath}).${detail}`,
-      );
-    }
-  };
-
   const attachRunning = (running: NonNullable<ProfileRuntimeState["running"]>) => {
     setProfileRunning(running);
     running.proc.on("exit", () => {
@@ -300,7 +273,6 @@ function createProfileContext(
   };
 
   const ensureBrowserAvailable = async (): Promise<void> => {
-    await runBrowserPreflight();
     const current = state();
     const remoteCdp = !profile.cdpIsLoopback;
     const isExtension = profile.driver === "extension";

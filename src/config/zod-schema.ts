@@ -203,8 +203,6 @@ export const OpenClawSchema = z
         cdpUrl: z.string().optional(),
         remoteCdpTimeoutMs: z.number().int().nonnegative().optional(),
         remoteCdpHandshakeTimeoutMs: z.number().int().nonnegative().optional(),
-        preflightScript: z.string().optional(),
-        preflightTimeoutMs: z.number().int().nonnegative().optional(),
         color: z.string().optional(),
         executablePath: z.string().optional(),
         headless: z.boolean().optional(),
