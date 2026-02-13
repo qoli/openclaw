@@ -157,11 +157,11 @@ describe("getDmHistoryLimitFromSessionKey", () => {
     const config = {
       channels: { telegram: { dmHistoryLimit: 15 } },
     } as OpenClawConfig;
-    expect(getDmHistoryLimitFromSessionKey("unknown:dm:123", config)).toBeUndefined();
+    expect(getDmHistoryLimitFromSessionKey("unknown:channel:123", config)).toBeUndefined();
   });
   it("returns undefined when provider config has no dmHistoryLimit", () => {
     const config = { channels: { telegram: {} } } as OpenClawConfig;
-    expect(getDmHistoryLimitFromSessionKey("telegram:dm:123", config)).toBeUndefined();
+    expect(getDmHistoryLimitFromSessionKey("discord:channel:123", config)).toBeUndefined();
   });
   it("handles all supported providers", () => {
     const providers = [

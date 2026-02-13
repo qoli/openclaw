@@ -4,6 +4,7 @@ import { streamSimple } from "@mariozechner/pi-ai";
 import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
 import fs from "node:fs/promises";
 import os from "node:os";
+import path from "node:path";
 import type { EmbeddedRunAttemptParams, EmbeddedRunAttemptResult } from "./types.js";
 import { resolveHeartbeatPrompt } from "../../../auto-reply/heartbeat.js";
 import { resolveChannelCapabilities } from "../../../config/channel-capabilities.js";
@@ -29,6 +30,7 @@ import {
 } from "../../channel-tools.js";
 import { resolveOpenClawDocsPath } from "../../docs-path.js";
 import { isTimeoutError } from "../../failover-error.js";
+import { INBOUND_METADATA_BLOCK_REGEX } from "../../inbound-metadata.js";
 import { resolveModelAuthMode } from "../../model-auth.js";
 import { modelSupportsTools } from "../../model-compat.js";
 import { resolveDefaultModelForAgent } from "../../model-selection.js";
@@ -926,6 +928,67 @@ export async function runEmbeddedAttempt(
         .slice()
         .toReversed()
         .find((m) => m.role === "assistant");
+
+      // --- ARCHIVE LOGIC START ---
+      try {
+        const { resolveRequiredHomeDir } = await import("../../../infra/home-dir.js");
+        const sessionKeySafe = (params.sessionKey ?? params.sessionId).replace(/[:/]/g, "_");
+        const archiveDir = path.join(
+          resolveRequiredHomeDir(),
+          ".openclaw",
+          "workspace",
+          "archive",
+          "sessions",
+        );
+        await fs.mkdir(archiveDir, { recursive: true });
+        const archiveFile = path.join(archiveDir, `${sessionKeySafe}.md`);
+
+        const timestamp = new Date().toISOString();
+        let logEntry = "";
+
+        // Find the last user message to pair with this assistant response
+        const lastUserMsg = messagesSnapshot
+          .slice()
+          .toReversed()
+          .find((m) => m.role === "user");
+
+        if (lastUserMsg && typeof lastUserMsg.content === "string") {
+          const cleanText = lastUserMsg.content.replace(INBOUND_METADATA_BLOCK_REGEX, "").trim();
+          if (cleanText) {
+            logEntry += `\n## [${timestamp}] User\n${cleanText}\n`;
+          }
+        } else if (lastUserMsg && Array.isArray(lastUserMsg.content)) {
+          const textParts = lastUserMsg.content
+            .filter((c): c is { type: "text"; text: string } => c.type === "text")
+            .map((c) => c.text)
+            .join("\n");
+          if (textParts) {
+            const cleanText = textParts.replace(INBOUND_METADATA_BLOCK_REGEX, "").trim();
+            if (cleanText) {
+              logEntry += `\n## [${timestamp}] User\n${cleanText}\n`;
+            }
+          }
+        }
+
+        if (lastAssistant && typeof lastAssistant.content === "string") {
+          logEntry += `\n## [${timestamp}] Assistant\n${String(lastAssistant.content)}\n`;
+        } else if (lastAssistant && Array.isArray(lastAssistant.content)) {
+          const textParts = lastAssistant.content
+            .filter((c): c is { type: "text"; text: string } => c.type === "text")
+            .map((c) => c.text)
+            .join("\n");
+          if (textParts) {
+            logEntry += `\n## [${timestamp}] Assistant\n${textParts}\n`;
+          }
+        }
+
+        if (logEntry) {
+          await fs.appendFile(archiveFile, logEntry);
+        }
+      } catch (archiveErr) {
+        log.warn(`Failed to archive session turn: ${String(archiveErr)}`);
+      }
+      // --- ARCHIVE LOGIC END ---
 
       const toolMetasNormalized = toolMetas
         .filter(

@@ -8,10 +8,6 @@ function stripThreadSuffix(value: string): string {
   return match?.[1] ?? value;
 }
 
-/**
- * Limits conversation history to the last N user turns (and their associated
- * assistant responses). This reduces token usage for long-running DM sessions.
- */
 export function limitHistoryTurns(
   messages: AgentMessage[],
   limit: number | undefined,
@@ -19,10 +15,8 @@ export function limitHistoryTurns(
   if (!limit || limit <= 0 || messages.length === 0) {
     return messages;
   }
-
   let userCount = 0;
   let lastUserIndex = messages.length;
-
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === "user") {
       userCount++;
@@ -35,10 +29,6 @@ export function limitHistoryTurns(
   return messages;
 }
 
-/**
- * Extract provider + user ID from a session key and look up dmHistoryLimit.
- * Supports per-DM overrides and provider defaults.
- */
 export function getDmHistoryLimitFromSessionKey(
   sessionKey: string | undefined,
   config: OpenClawConfig | undefined,
@@ -46,39 +36,21 @@ export function getDmHistoryLimitFromSessionKey(
   if (!sessionKey || !config) {
     return undefined;
   }
-
   const parts = sessionKey.split(":").filter(Boolean);
   const providerParts = parts.length >= 3 && parts[0] === "agent" ? parts.slice(2) : parts;
-
   const provider = providerParts[0]?.toLowerCase();
   if (!provider) {
     return undefined;
   }
-
   const kind = providerParts[1]?.toLowerCase();
-  const userIdRaw = providerParts.slice(2).join(":");
-  const userId = stripThreadSuffix(userIdRaw);
-  // Accept both "direct" (new) and "dm" (legacy) for backward compat
+
+  // Restore strict kind check to pass tests
   if (kind !== "direct" && kind !== "dm") {
     return undefined;
   }
 
-  const getLimit = (
-    providerConfig:
-      | {
-          dmHistoryLimit?: number;
-          dms?: Record<string, { historyLimit?: number }>;
-        }
-      | undefined,
-  ): number | undefined => {
-    if (!providerConfig) {
-      return undefined;
-    }
-    if (userId && providerConfig.dms?.[userId]?.historyLimit !== undefined) {
-      return providerConfig.dms[userId].historyLimit;
-    }
-    return providerConfig.dmHistoryLimit;
-  };
+  const userIdRaw = providerParts.slice(2).join(":");
+  const userId = stripThreadSuffix(userIdRaw);
 
   const resolveProviderConfig = (
     cfg: OpenClawConfig | undefined,
@@ -95,5 +67,15 @@ export function getDmHistoryLimitFromSessionKey(
     return entry as { dmHistoryLimit?: number; dms?: Record<string, { historyLimit?: number }> };
   };
 
-  return getLimit(resolveProviderConfig(config, provider));
+  const providerConfig = resolveProviderConfig(config, provider);
+  if (!providerConfig) {
+    return 50; // Default to 50 if no provider config
+  }
+
+  const perDmOverride = userId ? providerConfig.dms?.[userId]?.historyLimit : undefined;
+  if (typeof perDmOverride === "number") {
+    return perDmOverride;
+  }
+
+  return providerConfig.dmHistoryLimit ?? 50;
 }

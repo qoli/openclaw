@@ -1,5 +1,6 @@
 import type { AgentMessage, AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { ToolCallIdMode } from "../tool-call-id.js";
+import { INBOUND_METADATA_BLOCK_REGEX } from "../inbound-metadata.js";
 import { sanitizeToolCallIdsForCloudCodeAssist } from "../tool-call-id.js";
 import { sanitizeContentBlocksImages } from "../tool-images.js";
 import { stripThoughtSignatures } from "./bootstrap.js";
@@ -77,11 +78,62 @@ export async function sanitizeSessionMessagesImages(
       const userMsg = msg as Extract<AgentMessage, { role: "user" }>;
       const content = userMsg.content;
       if (Array.isArray(content)) {
+        // Sanitize images first
         const nextContent = (await sanitizeContentBlocksImages(
           content as unknown as ContentBlock[],
           label,
-        )) as unknown as typeof userMsg.content;
-        out.push({ ...userMsg, content: nextContent });
+        )) as unknown as ContentBlock[];
+
+        if (!Array.isArray(nextContent)) {
+          out.push({ ...userMsg, content: nextContent });
+          continue;
+        }
+
+        // Sanitize inbound metadata artifacts from text blocks.
+        const cleanedContent = nextContent
+          .map((block: ContentBlock) => {
+            if (
+              !block ||
+              typeof block !== "object" ||
+              (block as { type?: unknown }).type !== "text"
+            ) {
+              return block;
+            }
+            const rec = block as { text?: unknown };
+            if (typeof rec.text !== "string") {
+              return block;
+            }
+            // Strip matching untrusted metadata blocks (including stacked blocks).
+            const cleanedText = rec.text.replace(INBOUND_METADATA_BLOCK_REGEX, "").trim();
+            return { ...block, text: cleanedText };
+          })
+          .filter((block: ContentBlock) => {
+            if (!block || typeof block !== "object") {
+              return true;
+            }
+            const rec = block as { type?: unknown; text?: unknown };
+            // We only filter out blocks that were ALREADY empty before sanitization,
+            // or if they are just artifactual empty strings.
+            if (
+              rec.type === "text" &&
+              rec.text === "" &&
+              content.length > 1 // Only filter if there are other blocks (like images)
+            ) {
+              return false;
+            }
+            return true;
+          });
+
+        if (cleanedContent.length > 0) {
+          out.push({ ...userMsg, content: cleanedContent });
+        } else {
+          // Preserve transcript semantics: keep the user turn even when metadata stripping
+          // removes all text/image content.
+          out.push({
+            ...userMsg,
+            content: [{ type: "text", text: "" }],
+          });
+        }
         continue;
       }
     }

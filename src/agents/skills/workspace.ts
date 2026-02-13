@@ -231,7 +231,7 @@ export function buildWorkspaceSkillSnapshot(
   );
   const resolvedSkills = promptEntries.map((entry) => entry.skill);
   const remoteNote = opts?.eligibility?.remote?.note?.trim();
-  const prompt = [remoteNote, formatSkillsForPrompt(resolvedSkills)].filter(Boolean).join("\n");
+  const prompt = [remoteNote, formatSkillsCompact(resolvedSkills)].filter(Boolean).join("\n");
   return {
     prompt,
     skills: eligible.map((entry) => ({
@@ -266,9 +266,50 @@ export function buildWorkspaceSkillsPrompt(
     (entry) => entry.invocation?.disableModelInvocation !== true,
   );
   const remoteNote = opts?.eligibility?.remote?.note?.trim();
-  return [remoteNote, formatSkillsForPrompt(promptEntries.map((entry) => entry.skill))]
+  return [remoteNote, formatSkillsCompact(promptEntries.map((entry) => entry.skill))]
     .filter(Boolean)
     .join("\n");
+}
+
+function xmlEscape(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function truncateWithEllipsis(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value;
+  }
+  const limit = Math.max(0, maxChars - 3);
+  const points = Array.from(value);
+  return `${points.slice(0, limit).join("")}...`;
+}
+
+function formatSkillsCompact(skills: Skill[]): string {
+  if (skills.length === 0) {
+    return "";
+  }
+  const lines = ["<available_skills>"];
+  for (const skill of skills) {
+    // Truncate description to save tokens while keeping context
+    const rawDesc = skill.description?.trim() ?? "";
+    const cleanDesc = rawDesc.replace(/\s+/g, " ");
+    const description = truncateWithEllipsis(cleanDesc, 150);
+
+    lines.push(
+      "  <skill>",
+      `    <name>${xmlEscape(skill.name)}</name>`,
+      `    <description>${xmlEscape(description)}</description>`,
+      `    <location>${xmlEscape(skill.filePath)}</location>`,
+      "  </skill>",
+    );
+  }
+  lines.push("</available_skills>");
+  return lines.join("\n");
 }
 
 export function resolveSkillsPromptForRun(params: {
