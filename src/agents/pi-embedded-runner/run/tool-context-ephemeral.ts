@@ -1,5 +1,8 @@
 import type { StreamFn } from "@mariozechner/pi-agent-core";
 import type { AssistantMessage, Message, TextContent, ToolCall } from "@mariozechner/pi-ai";
+import fs from "node:fs";
+import path from "node:path";
+import { resolvePreferredOpenClawTmpDir } from "../../../infra/tmp-openclaw-dir.js";
 import { log } from "../logger.js";
 
 const DEFAULT_TRIGGER_ROUNDS = 4;
@@ -9,6 +12,7 @@ const DEFAULT_SUMMARY_MAX_CALLS = 6;
 const DEFAULT_SUMMARY_INPUT_MAX_CHARS = 18_000;
 const DEFAULT_SUMMARY_MAX_TOKENS = 1_000;
 const TOOL_HISTORY_SUMMARY_HEADER = "Compressed tool execution history (system-generated):";
+const EPHEMERAL_SUMMARY_LOG_PREFIX = "ephemeral-summary";
 const TOOL_HISTORY_SUMMARY_SYSTEM_PROMPT =
   "You summarize tool execution history for an agent runtime checkpoint. " +
   "Be concise and factual. Keep only outcomes, key findings, file paths, commands, " +
@@ -34,6 +38,51 @@ type EphemeralToolContextWrapperConfig = {
   provider?: string;
   modelId?: string;
 };
+
+type EphemeralSummaryAuditEvent =
+  | {
+      type: "summary_updated";
+      timestamp: string;
+      compressedRounds: number;
+      remainingMessages: number;
+      totalRounds: number;
+      runId?: string;
+      sessionId?: string;
+      provider?: string;
+      modelId?: string;
+    }
+  | {
+      type: "summary_failed";
+      timestamp: string;
+      pendingRounds: number;
+      totalRounds: number;
+      error: string;
+      runId?: string;
+      sessionId?: string;
+      provider?: string;
+      modelId?: string;
+    };
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function appendEphemeralSummaryAudit(event: EphemeralSummaryAuditEvent): void {
+  try {
+    const dir = resolvePreferredOpenClawTmpDir();
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(
+      dir,
+      `${EPHEMERAL_SUMMARY_LOG_PREFIX}-${formatLocalDate(new Date())}.log`,
+    );
+    fs.appendFileSync(file, `${JSON.stringify(event)}\n`, { encoding: "utf8" });
+  } catch {
+    // Do not block agent execution on diagnostics I/O failures.
+  }
+}
 
 function isAssistantWithToolCalls(message: Message): message is AssistantMessage {
   if (
@@ -308,6 +357,8 @@ export function createEphemeralToolContextWrapper(
       pendingRounds > 0 &&
       summaryCalls < summaryMaxCalls &&
       (!compressedSummary || pendingRounds >= summaryBatchRounds);
+    let summaryUpdatedThisCall = false;
+    let summaryUpdatedRounds = 0;
 
     if (shouldAttemptSummary) {
       const newRounds = rounds.slice(summarizedRounds, compressibleRounds);
@@ -321,10 +372,23 @@ export function createEphemeralToolContextWrapper(
           summaryInputMaxChars,
           summaryMaxTokens,
         });
+        summaryUpdatedThisCall = true;
+        summaryUpdatedRounds = newRounds.length;
         summarizedRounds = compressibleRounds;
         summaryCalls += 1;
       } catch (error) {
         summaryCalls += 1;
+        appendEphemeralSummaryAudit({
+          type: "summary_failed",
+          timestamp: new Date().toISOString(),
+          pendingRounds: newRounds.length,
+          totalRounds: rounds.length,
+          error: error instanceof Error ? error.message : String(error),
+          runId: config.runId,
+          sessionId: config.sessionId,
+          provider: config.provider,
+          modelId: config.modelId,
+        });
         log.warn(
           "ephemeral tool context: summary update failed; keeping unsummarized rounds in context " +
             `runId=${config.runId ?? "unknown"} sessionId=${config.sessionId ?? "unknown"} ` +
@@ -340,6 +404,26 @@ export function createEphemeralToolContextWrapper(
     }
 
     const prunedMessages = pruneRoundsFromMessages(messages, rounds, pruneRoundsCount);
+    if (summaryUpdatedThisCall) {
+      appendEphemeralSummaryAudit({
+        type: "summary_updated",
+        timestamp: new Date().toISOString(),
+        compressedRounds: summaryUpdatedRounds,
+        remainingMessages: prunedMessages.length,
+        totalRounds: rounds.length,
+        runId: config.runId,
+        sessionId: config.sessionId,
+        provider: config.provider,
+        modelId: config.modelId,
+      });
+      log.info(
+        "ephemeral tool context: summary updated " +
+          `compressedRounds=${summaryUpdatedRounds} ` +
+          `remainingMessages=${prunedMessages.length} ` +
+          `runId=${config.runId ?? "unknown"} sessionId=${config.sessionId ?? "unknown"} ` +
+          `provider=${config.provider ?? "unknown"} model=${config.modelId ?? "unknown"}`,
+      );
+    }
     const nextContext = applySummaryToSystemPrompt(
       {
         ...context,
