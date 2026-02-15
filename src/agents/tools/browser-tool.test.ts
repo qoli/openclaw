@@ -264,6 +264,45 @@ describe("browser tool snapshot maxChars", () => {
     );
     expect(gatewayMocks.callGatewayTool).not.toHaveBeenCalled();
   });
+
+  it("normalizes legacy act ref aliases into request.ref", async () => {
+    const tool = createBrowserTool();
+    await tool.execute?.(null, {
+      action: "act",
+      element: "e156",
+      targetId: "tab-1",
+      request: { kind: "type", text: "hello from test" },
+    });
+
+    expect(browserActionsMocks.browserAct).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        kind: "type",
+        ref: "e156",
+        targetId: "tab-1",
+        text: "hello from test",
+      }),
+      expect.objectContaining({ profile: undefined }),
+    );
+  });
+
+  it("preserves request.ref when already provided", async () => {
+    const tool = createBrowserTool();
+    await tool.execute?.(null, {
+      action: "act",
+      inputRef: "e999",
+      request: { kind: "click", ref: "e7" },
+    });
+
+    expect(browserActionsMocks.browserAct).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({
+        kind: "click",
+        ref: "e7",
+      }),
+      expect.objectContaining({ profile: undefined }),
+    );
+  });
 });
 
 describe("browser tool snapshot labels", () => {

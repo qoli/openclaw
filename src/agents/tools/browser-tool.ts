@@ -212,6 +212,44 @@ function applyProxyPaths(result: unknown, mapping: Map<string, string>) {
   }
 }
 
+function normalizeBrowserActRequest(
+  request: Record<string, unknown>,
+  params: Record<string, unknown>,
+): Record<string, unknown> {
+  const normalized: Record<string, unknown> = { ...request };
+
+  // Carry top-level targetId into request for backward compatibility.
+  const requestTargetId = readStringParam(normalized, "targetId");
+  if (!requestTargetId) {
+    const topLevelTargetId = readStringParam(params, "targetId");
+    if (topLevelTargetId) {
+      normalized.targetId = topLevelTargetId;
+    }
+  }
+
+  // Older calls put element/inputRef/ref on the outer tool args.
+  const kind = readStringParam(normalized, "kind");
+  const requestRef = readStringParam(normalized, "ref");
+  const needsRef =
+    kind === "click" ||
+    kind === "type" ||
+    kind === "hover" ||
+    kind === "scrollIntoView" ||
+    kind === "select" ||
+    kind === "evaluate";
+  if (needsRef && !requestRef) {
+    const fallbackRef =
+      readStringParam(params, "ref") ??
+      readStringParam(params, "element") ??
+      readStringParam(params, "inputRef");
+    if (fallbackRef) {
+      normalized.ref = fallbackRef;
+    }
+  }
+
+  return normalized;
+}
+
 function resolveBrowserBaseUrl(params: {
   target?: "sandbox" | "host";
   sandboxBridgeUrl?: string;
@@ -797,15 +835,16 @@ export function createBrowserTool(opts?: {
           if (!request || typeof request !== "object") {
             throw new Error("request required");
           }
+          const normalizedRequest = normalizeBrowserActRequest(request, params);
           try {
             const result = proxyRequest
               ? await proxyRequest({
                   method: "POST",
                   path: "/act",
                   profile,
-                  body: request,
+                  body: normalizedRequest,
                 })
-              : await browserAct(baseUrl, request as Parameters<typeof browserAct>[1], {
+              : await browserAct(baseUrl, normalizedRequest as Parameters<typeof browserAct>[1], {
                   profile,
                 });
             return jsonResult(result);
