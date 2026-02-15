@@ -36,6 +36,7 @@ describe("startTelegramWebhook", () => {
     const cfg = { bindings: [] };
     const { server } = await startTelegramWebhook({
       token: "tok",
+      secret: "secret",
       accountId: "opie",
       config: cfg,
       port: 0, // random free port
@@ -80,6 +81,7 @@ describe("startTelegramWebhook", () => {
     const cfg = { bindings: [] };
     const { server } = await startTelegramWebhook({
       token: "tok",
+      secret: "secret",
       accountId: "opie",
       config: cfg,
       port: 0,
