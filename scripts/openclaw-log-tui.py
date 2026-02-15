@@ -27,6 +27,7 @@ CACHE_RE = re.compile(
     r"provider=([^ ]+) model=([^ ]+) session=([^ ]+) ts=(.+)$",
 )
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+RECENT_PER_GROUP = 12
 
 
 @dataclass
@@ -269,14 +270,14 @@ def draw(stdscr: curses.window, state: TuiState, colors: dict[str, int]) -> None
     safe_add(stdscr, 6, 0, shorten(summary3, w), colors["muted"])
 
     lm_top = 8
-    safe_add(stdscr, lm_top, 0, "LM Studio (latest 6)", colors["header"])
-    lm_lines = list(state.lm_events)[-6:]
+    safe_add(stdscr, lm_top, 0, f"LM Studio (latest {RECENT_PER_GROUP})", colors["header"])
+    lm_lines = list(state.lm_events)[-RECENT_PER_GROUP:]
     for idx, item in enumerate(lm_lines):
         safe_add(stdscr, lm_top + 1 + idx, 0, shorten(item, w), event_color(item, colors))
 
-    oc_top = lm_top + 8
-    safe_add(stdscr, oc_top, 0, "OpenClaw (latest 6)", colors["header"])
-    oc_lines = list(state.openclaw_events)[-6:]
+    oc_top = lm_top + RECENT_PER_GROUP + 2
+    safe_add(stdscr, oc_top, 0, f"OpenClaw (latest {RECENT_PER_GROUP})", colors["header"])
+    oc_lines = list(state.openclaw_events)[-RECENT_PER_GROUP:]
     for idx, item in enumerate(oc_lines):
         safe_add(stdscr, oc_top + 1 + idx, 0, shorten(item, w), event_color(item, colors))
 
