@@ -148,4 +148,5 @@ fi
 
 echo "[remote] running: clawdbot gateway restart && clawdbot doctor --fix"
 clawdbot gateway restart && clawdbot doctor --fix
+openclaw browser status
 EOF
