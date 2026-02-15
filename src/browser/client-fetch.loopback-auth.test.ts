@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
       },
     },
   })),
+  startBrowserControlServiceFromConfig: vi.fn(async () => true),
+  dispatch: vi.fn(async () => ({ status: 200, body: { ok: true } })),
 }));
 
 vi.mock("../config/config.js", async (importOriginal) => {
@@ -20,12 +22,12 @@ vi.mock("../config/config.js", async (importOriginal) => {
 
 vi.mock("./control-service.js", () => ({
   createBrowserControlContext: vi.fn(() => ({})),
-  startBrowserControlServiceFromConfig: vi.fn(async () => ({ ok: true })),
+  startBrowserControlServiceFromConfig: mocks.startBrowserControlServiceFromConfig,
 }));
 
 vi.mock("./routes/dispatcher.js", () => ({
   createBrowserRouteDispatcher: vi.fn(() => ({
-    dispatch: vi.fn(async () => ({ status: 200, body: { ok: true } })),
+    dispatch: mocks.dispatch,
   })),
 }));
 
@@ -42,6 +44,10 @@ describe("fetchBrowserJson loopback auth", () => {
         },
       },
     });
+    mocks.startBrowserControlServiceFromConfig.mockReset();
+    mocks.startBrowserControlServiceFromConfig.mockResolvedValue(true);
+    mocks.dispatch.mockReset();
+    mocks.dispatch.mockResolvedValue({ status: 200, body: { ok: true } });
   });
 
   afterEach(() => {
@@ -102,5 +108,38 @@ describe("fetchBrowserJson loopback auth", () => {
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
     const headers = new Headers(init?.headers);
     expect(headers.get("authorization")).toBe("Bearer caller-token");
+  });
+
+  it("surfaces relative-route request errors without connectivity wrapper", async () => {
+    mocks.dispatch.mockResolvedValueOnce({
+      status: 400,
+      body: {
+        error: 'Unknown ref "e156". Run a new snapshot and use a ref from that snapshot.',
+      },
+    });
+
+    try {
+      await fetchBrowserJson("/agent/act", {
+        method: "POST",
+      });
+      throw new Error("expected fetchBrowserJson to throw");
+    } catch (err) {
+      const msg = String((err as Error).message ?? err);
+      expect(msg).toContain('Unknown ref "e156"');
+      expect(msg).not.toContain("Can't reach the OpenClaw browser control service");
+    }
+  });
+
+  it("still wraps absolute-url network failures with connectivity hint", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    );
+
+    await expect(fetchBrowserJson("http://127.0.0.1:18888/")).rejects.toThrow(
+      "Can't reach the OpenClaw browser control service",
+    );
   });
 });

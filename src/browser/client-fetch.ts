@@ -48,10 +48,11 @@ function withLoopbackBrowserAuth(
 }
 
 function enhanceBrowserFetchError(url: string, err: unknown, timeoutMs: number): Error {
+  const original = err instanceof Error ? err : new Error(String(err));
   const hint = isAbsoluteHttp(url)
     ? "If this is a sandboxed session, ensure the sandbox browser is running and try again."
     : `Start (or restart) the OpenClaw gateway (OpenClaw.app menubar, or \`${formatCliCommand("openclaw gateway")}\`) and try again.`;
-  const msg = String(err);
+  const msg = String(original.message || original);
   const msgLower = msg.toLowerCase();
   const looksLikeTimeout =
     msgLower.includes("timed out") ||
@@ -64,7 +65,23 @@ function enhanceBrowserFetchError(url: string, err: unknown, timeoutMs: number):
       `Can't reach the OpenClaw browser control service (timed out after ${timeoutMs}ms). ${hint}`,
     );
   }
-  return new Error(`Can't reach the OpenClaw browser control service. ${hint} (${msg})`);
+  const looksLikeConnectivityIssue =
+    original.name === "TypeError" ||
+    msgLower.includes("fetch failed") ||
+    msgLower.includes("failed to fetch") ||
+    msgLower.includes("network error") ||
+    msgLower.includes("econnrefused") ||
+    msgLower.includes("econnreset") ||
+    msgLower.includes("enotfound") ||
+    msgLower.includes("ehostunreach") ||
+    msgLower.includes("eai_again") ||
+    msgLower.includes("connection refused") ||
+    msgLower.includes("connection reset") ||
+    msgLower.includes("socket hang up");
+  if (looksLikeConnectivityIssue) {
+    return new Error(`Can't reach the OpenClaw browser control service. ${hint} (${msg})`);
+  }
+  return original;
 }
 
 async function fetchHttpJson<T>(
