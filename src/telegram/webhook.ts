@@ -16,6 +16,7 @@ import { resolveTelegramAllowedUpdates } from "./allowed-updates.js";
 import { withTelegramApiErrorLogging } from "./api-logging.js";
 import { createTelegramBot } from "./bot.js";
 
+const TELEGRAM_WEBHOOK_CALLBACK_TIMEOUT_MS = 10_000;
 export async function startTelegramWebhook(opts: {
   token: string;
   accountId?: string;
@@ -45,6 +46,8 @@ export async function startTelegramWebhook(opts: {
   });
   const handler = webhookCallback(bot, "http", {
     secretToken: opts.secret,
+    onTimeout: "return",
+    timeoutMilliseconds: TELEGRAM_WEBHOOK_CALLBACK_TIMEOUT_MS,
   });
 
   if (diagnosticsEnabled) {
