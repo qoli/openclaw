@@ -286,6 +286,7 @@ export const OpenClawSchema = z
       .optional(),
     messages: MessagesSchema,
     commands: CommandsSchema,
+    neverInjectConversationInfo: z.boolean().optional(),
     approvals: ApprovalsSchema,
     session: SessionSchema,
     cron: z

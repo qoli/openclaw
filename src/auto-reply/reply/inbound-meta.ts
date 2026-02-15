@@ -59,7 +59,14 @@ export function buildInboundMetaSystemPrompt(ctx: TemplateContext): string {
   ].join("\n");
 }
 
-export function buildInboundUserContextPrefix(ctx: TemplateContext): string {
+type BuildInboundUserContextPrefixOptions = {
+  neverInjectConversationInfo?: boolean;
+};
+
+export function buildInboundUserContextPrefix(
+  ctx: TemplateContext,
+  opts: BuildInboundUserContextPrefixOptions = {},
+): string {
   const blocks: string[] = [];
   const chatType = normalizeChatType(ctx.ChatType);
   const isDirect = !chatType || chatType === "direct";
@@ -80,7 +87,7 @@ export function buildInboundUserContextPrefix(ctx: TemplateContext): string {
   const cleanConversation = Object.fromEntries(
     Object.entries(conversationInfo).filter(([_, v]) => v !== undefined),
   );
-  if (Object.keys(cleanConversation).length > 0) {
+  if (!opts.neverInjectConversationInfo && Object.keys(cleanConversation).length > 0) {
     blocks.push(
       `Conversation info (untrusted metadata):\n\`\`\`json\n${JSON.stringify(cleanConversation)}\n\`\`\``,
     );

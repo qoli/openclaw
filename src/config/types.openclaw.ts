@@ -86,6 +86,11 @@ export type OpenClawConfig = {
   audio?: AudioConfig;
   messages?: MessagesConfig;
   commands?: CommandsConfig;
+  /**
+   * If true, do not inject "Conversation info (untrusted metadata)" into user prompt context.
+   * Default: false.
+   */
+  neverInjectConversationInfo?: boolean;
   approvals?: ApprovalsConfig;
   session?: SessionConfig;
   web?: WebConfig;
