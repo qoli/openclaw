@@ -2,7 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { withTempHome } from "../../test/helpers/temp-home.js";
-import { loadAndMaybeMigrateDoctorConfig, partitionDoctorConfigIssues } from "./doctor-config-flow.js";
+import {
+  loadAndMaybeMigrateDoctorConfig,
+  partitionDoctorConfigIssues,
+} from "./doctor-config-flow.js";
 
 describe("doctor config flow", () => {
   it("preserves invalid config for doctor repairs", async () => {
@@ -70,6 +73,18 @@ describe("doctor config flow", () => {
       {
         path: "agents.defaults.contextPruning",
         message: 'Unrecognized key: "toolContext"',
+      },
+    ]);
+
+    expect(grouped.tolerated).toHaveLength(1);
+    expect(grouped.blocking).toHaveLength(0);
+  });
+
+  it("tolerates neverInjectConversationInfo root unknown-key issues", () => {
+    const grouped = partitionDoctorConfigIssues([
+      {
+        path: "",
+        message: 'Unrecognized key: "neverInjectConversationInfo"',
       },
     ]);
 

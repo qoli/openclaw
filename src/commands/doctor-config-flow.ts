@@ -23,6 +23,10 @@ type UnrecognizedKeysIssue = ZodIssue & {
 
 const DOCTOR_FORWARD_COMPAT_UNKNOWN_KEYS = [
   {
+    path: [] as const,
+    key: "neverInjectConversationInfo",
+  },
+  {
     path: ["agents", "defaults", "contextPruning"] as const,
     key: "toolContext",
   },
@@ -65,10 +69,15 @@ export function partitionDoctorConfigIssues(issues: ConfigValidationIssue[]): {
   const tolerated: ConfigValidationIssue[] = [];
   const blocking: ConfigValidationIssue[] = [];
   for (const issue of issues) {
-    if (
-      issue.path === "agents.defaults.contextPruning" &&
-      hasUnknownKeyMessage(issue.message, "toolContext")
-    ) {
+    const issuePath = issue.path
+      .split(".")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const isForwardCompat = DOCTOR_FORWARD_COMPAT_UNKNOWN_KEYS.some(
+      (entry) =>
+        pathMatches(issuePath, entry.path) && hasUnknownKeyMessage(issue.message, entry.key),
+    );
+    if (isForwardCompat) {
       tolerated.push(issue);
       continue;
     }
@@ -268,7 +277,10 @@ export async function loadAndMaybeMigrateDoctorConfig(params: {
   const issueGroups = partitionDoctorConfigIssues(snapshot.issues ?? []);
   if (snapshot.exists && !snapshot.valid && snapshot.legacyIssues.length === 0) {
     if (issueGroups.blocking.length === 0 && issueGroups.tolerated.length > 0) {
-      note("Config uses forward-compatible keys; doctor will continue with best-effort config.", "Config");
+      note(
+        "Config uses forward-compatible keys; doctor will continue with best-effort config.",
+        "Config",
+      );
     } else {
       note("Config invalid; doctor will run with best-effort config.", "Config");
     }
