@@ -54,9 +54,14 @@ function enhanceBrowserFetchError(url: string, err: unknown, timeoutMs: number):
     : `Start (or restart) the OpenClaw gateway (OpenClaw.app menubar, or \`${formatCliCommand("openclaw gateway")}\`) and try again.`;
   const msg = String(original.message || original);
   const msgLower = msg.toLowerCase();
+  const actionTimeoutMessage = buildBrowserActionTimeoutMessage(msg);
+  if (actionTimeoutMessage) {
+    return new Error(actionTimeoutMessage);
+  }
+
   const looksLikeTimeout =
-    msgLower.includes("timed out") ||
-    msgLower.includes("timeout") ||
+    msgLower === "timed out" ||
+    msgLower.includes("aborted: timed out") ||
     msgLower.includes("aborted") ||
     msgLower.includes("abort") ||
     msgLower.includes("aborterror");
@@ -82,6 +87,33 @@ function enhanceBrowserFetchError(url: string, err: unknown, timeoutMs: number):
     return new Error(`Can't reach the OpenClaw browser control service. ${hint} (${msg})`);
   }
   return original;
+}
+
+function buildBrowserActionTimeoutMessage(rawMessage: string): string | null {
+  const message = String(rawMessage ?? "");
+  const lower = message.toLowerCase();
+  if (!lower.includes("timeouterror") || !lower.includes("timeout") || !lower.includes("ms")) {
+    return null;
+  }
+  const actionMatch = message.match(/locator\.(\w+)/i);
+  if (!actionMatch?.[1]) {
+    return null;
+  }
+  const timeoutMatch = message.match(/timeout\s+(\d+)\s*ms\s+exceeded/i);
+  if (!timeoutMatch?.[1]) {
+    return null;
+  }
+  const refMatch =
+    message.match(/data-openclaw-ref(?:=|\\=)['"]?([a-z0-9_-]+)['"]?/i) ??
+    message.match(/Element\s+"([a-z0-9_-]+)"/i);
+  const action = actionMatch[1].toLowerCase();
+  const timeout = timeoutMatch[1];
+  const refSuffix = refMatch?.[1] ? ` on ref "${refMatch[1]}"` : "";
+  return (
+    `Browser action failed: ${action}${refSuffix} timed out after ${timeout}ms. ` +
+    "The element may be hidden, disabled, covered, or stale. " +
+    "Capture a new snapshot and retry with a fresh ref/targetId."
+  );
 }
 
 async function fetchHttpJson<T>(

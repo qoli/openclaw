@@ -130,6 +130,44 @@ describe("fetchBrowserJson loopback auth", () => {
     }
   });
 
+  it("rewrites Playwright action timeouts into browser action guidance", async () => {
+    mocks.dispatch.mockResolvedValueOnce({
+      status: 500,
+      body: {
+        error:
+          "Error: TimeoutError: locator.click: Timeout 8000ms exceeded. waiting for locator('[data-openclaw-ref=\"e207\"]')",
+      },
+    });
+
+    try {
+      await fetchBrowserJson("/act", {
+        method: "POST",
+      });
+      throw new Error("expected fetchBrowserJson to throw");
+    } catch (err) {
+      const msg = String((err as Error).message ?? err);
+      expect(msg).toContain('Browser action failed: click on ref "e207" timed out after 8000ms.');
+      expect(msg).toContain("Capture a new snapshot and retry with a fresh ref/targetId.");
+      expect(msg).not.toContain("Can't reach the OpenClaw browser control service");
+    }
+  });
+
+  it("keeps connectivity timeout wrapper for request-level timeouts", async () => {
+    mocks.dispatch.mockImplementationOnce(
+      () =>
+        new Promise(() => {
+          // Intentionally unresolved.
+        }),
+    );
+
+    await expect(
+      fetchBrowserJson("/act", {
+        method: "POST",
+        timeoutMs: 25,
+      }),
+    ).rejects.toThrow("Can't reach the OpenClaw browser control service (timed out after 25ms)");
+  });
+
   it("still wraps absolute-url network failures with connectivity hint", async () => {
     vi.stubGlobal(
       "fetch",
