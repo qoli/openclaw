@@ -345,6 +345,8 @@ export function renderApp(state: AppViewState) {
                 timeSeriesBreakdownMode: state.usageTimeSeriesBreakdownMode,
                 timeSeries: state.usageTimeSeries,
                 timeSeriesLoading: state.usageTimeSeriesLoading,
+                timeSeriesCursorStart: state.usageTimeSeriesCursorStart,
+                timeSeriesCursorEnd: state.usageTimeSeriesCursorEnd,
                 sessionLogs: state.usageSessionLogs,
                 sessionLogsLoading: state.usageSessionLogsLoading,
                 sessionLogsExpanded: state.usageSessionLogsExpanded,
@@ -522,6 +524,10 @@ export function renderApp(state: AppViewState) {
                     }
                   }
 
+                  // Reset range selection when switching sessions
+                  state.usageTimeSeriesCursorStart = null;
+                  state.usageTimeSeriesCursorEnd = null;
+
                   // Load timeseries/logs only if exactly one session selected
                   if (state.usageSelectedSessions.length === 1) {
                     void loadSessionTimeSeries(state, state.usageSelectedSessions[0]);
@@ -565,6 +571,10 @@ export function renderApp(state: AppViewState) {
                 onTimeSeriesBreakdownChange: (mode) => {
                   state.usageTimeSeriesBreakdownMode = mode;
                 },
+                onTimeSeriesCursorRangeChange: (start, end) => {
+                  state.usageTimeSeriesCursorStart = start;
+                  state.usageTimeSeriesCursorEnd = end;
+                },
                 onClearDays: () => {
                   state.usageSelectedDays = [];
                 },
@@ -575,6 +585,8 @@ export function renderApp(state: AppViewState) {
                   state.usageSelectedSessions = [];
                   state.usageTimeSeries = null;
                   state.usageSessionLogs = null;
+                  state.usageTimeSeriesCursorStart = null;
+                  state.usageTimeSeriesCursorEnd = null;
                 },
                 onClearFilters: () => {
                   state.usageSelectedDays = [];
@@ -582,6 +594,8 @@ export function renderApp(state: AppViewState) {
                   state.usageSelectedSessions = [];
                   state.usageTimeSeries = null;
                   state.usageSessionLogs = null;
+                  state.usageTimeSeriesCursorStart = null;
+                  state.usageTimeSeriesCursorEnd = null;
                 },
               })
             : nothing

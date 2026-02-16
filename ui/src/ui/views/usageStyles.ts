@@ -1149,6 +1149,9 @@ export const usageStylesString = `
     fill: #ff4d4d;
     transition: fill 0.15s;
   }
+  .timeseries-svg .ts-bar.dimmed {
+    opacity: 0.35;
+  }
   .timeseries-svg .ts-bar:hover {
     fill: #cc3d3d;
   }
@@ -1156,6 +1159,10 @@ export const usageStylesString = `
   .timeseries-svg .ts-bar.input { fill: #f59e0b; }
   .timeseries-svg .ts-bar.cache-write { fill: #10b981; }
   .timeseries-svg .ts-bar.cache-read { fill: #06b6d4; }
+  .ts-axis-label {
+    font-size: 5px;
+    fill: var(--text-muted);
+  }
   .timeseries-summary {
     margin-top: 12px;
     font-size: 13px;
@@ -1770,6 +1777,18 @@ export const usageStylesString = `
   .session-timeseries-compact .timeseries-summary {
     font-size: 11px;
     margin-top: 8px;
+  }
+  .timeseries-chart-wrapper {
+    position: relative;
+  }
+  .chart-handle-zone {
+    position: absolute;
+    top: 0;
+    width: 16px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 10;
+    transform: translateX(-50%);
   }
   
   /* ===== COMPACT CONTEXT ===== */
