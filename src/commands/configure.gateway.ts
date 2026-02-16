@@ -92,17 +92,7 @@ export async function promptGatewayConfig(
     customBindHost = typeof input === "string" ? input : undefined;
   }
 
-  let authMode = guardCancel(
-    await select({
-      message: "Gateway auth",
-      options: [
-        { value: "token", label: "Token", hint: "Recommended default" },
-        { value: "password", label: "Password" },
-      ],
-      initialValue: "token",
-    }),
-    runtime,
-  ) as GatewayAuthChoice;
+  let authMode: GatewayAuthChoice = "token";
 
   const tailscaleMode = guardCancel(
     await select({
@@ -165,6 +155,23 @@ export async function promptGatewayConfig(
     bind = "loopback";
   }
 
+  const loopbackOnlyGateway = bind === "loopback" && tailscaleMode === "off";
+  if (loopbackOnlyGateway) {
+    note("Loopback-only gateway does not require gateway.auth. Keeping auth disabled.", "Note");
+  } else {
+    authMode = guardCancel(
+      await select({
+        message: "Gateway auth",
+        options: [
+          { value: "token", label: "Token", hint: "Recommended default" },
+          { value: "password", label: "Password" },
+        ],
+        initialValue: tailscaleMode === "funnel" ? "password" : "token",
+      }),
+      runtime,
+    ) as GatewayAuthChoice;
+  }
+
   if (tailscaleMode === "funnel" && authMode !== "password") {
     note("Tailscale funnel requires password auth.", "Note");
     authMode = "password";
@@ -174,7 +181,7 @@ export async function promptGatewayConfig(
   let gatewayPassword: string | undefined;
   let next = cfg;
 
-  if (authMode === "token") {
+  if (!loopbackOnlyGateway && authMode === "token") {
     const tokenInput = guardCancel(
       await text({
         message: "Gateway token (blank to generate)",
@@ -185,7 +192,7 @@ export async function promptGatewayConfig(
     gatewayToken = normalizeGatewayTokenInput(tokenInput) || randomToken();
   }
 
-  if (authMode === "password") {
+  if (!loopbackOnlyGateway && authMode === "password") {
     const password = guardCancel(
       await text({
         message: "Gateway password",
@@ -196,12 +203,14 @@ export async function promptGatewayConfig(
     gatewayPassword = String(password ?? "").trim();
   }
 
-  const authConfig = buildGatewayAuthConfig({
-    existing: next.gateway?.auth,
-    mode: authMode,
-    token: gatewayToken,
-    password: gatewayPassword,
-  });
+  const authConfig = loopbackOnlyGateway
+    ? undefined
+    : buildGatewayAuthConfig({
+        existing: next.gateway?.auth,
+        mode: authMode,
+        token: gatewayToken,
+        password: gatewayPassword,
+      });
 
   next = {
     ...next,
@@ -210,7 +219,7 @@ export async function promptGatewayConfig(
       mode: "local",
       port,
       bind,
-      auth: authConfig,
+      ...(authConfig ? { auth: authConfig } : {}),
       ...(customBindHost && { customBindHost }),
       tailscale: {
         ...next.gateway?.tailscale,

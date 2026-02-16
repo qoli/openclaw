@@ -27,7 +27,10 @@ import {
   noteAuthProfileHealth,
 } from "./doctor-auth.js";
 import { doctorShellCompletion } from "./doctor-completion.js";
-import { loadAndMaybeMigrateDoctorConfig, partitionDoctorConfigIssues } from "./doctor-config-flow.js";
+import {
+  loadAndMaybeMigrateDoctorConfig,
+  partitionDoctorConfigIssues,
+} from "./doctor-config-flow.js";
 import { maybeRepairGatewayDaemon } from "./doctor-gateway-daemon-flow.js";
 import { checkGatewayHealth } from "./doctor-gateway-health.js";
 import {
@@ -122,14 +125,18 @@ export async function doctorCommand(
     note(gatewayDetails.remoteFallbackNote, "Gateway");
   }
   if (resolveMode(cfg) === "local") {
+    const gatewayBind = cfg.gateway?.bind ?? "loopback";
+    const tailscaleMode = cfg.gateway?.tailscale?.mode ?? "off";
+    const requireGatewayAuth = gatewayBind !== "loopback" || tailscaleMode !== "off";
     const auth = resolveGatewayAuth({
       authConfig: cfg.gateway?.auth,
-      tailscaleMode: cfg.gateway?.tailscale?.mode ?? "off",
+      tailscaleMode,
     });
-    const needsToken = auth.mode !== "password" && (auth.mode !== "token" || !auth.token);
+    const needsToken =
+      requireGatewayAuth && auth.mode !== "password" && (auth.mode !== "token" || !auth.token);
     if (needsToken) {
       note(
-        "Gateway auth is off or missing a token. Token auth is now the recommended default (including loopback).",
+        "Gateway auth is off or missing a token. Token auth is recommended when the gateway is exposed beyond local loopback.",
         "Gateway auth",
       );
       const shouldSetToken =
