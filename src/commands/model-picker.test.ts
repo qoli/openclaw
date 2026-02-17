@@ -93,13 +93,15 @@ describe("promptModelAllowlist", () => {
 
     await promptModelAllowlist({ config, prompter });
 
-    const options = multiselect.mock.calls[0]?.[0]?.options ?? [];
+    const call = multiselect.mock.calls[0]?.[0];
+    const options = call?.options ?? [];
     expect(options.some((opt: { value: string }) => opt.value === "openrouter/auto")).toBe(false);
     expect(
       options.some(
         (opt: { value: string }) => opt.value === "openrouter/meta-llama/llama-3.3-70b:free",
       ),
     ).toBe(true);
+    expect(call?.searchable).toBe(true);
   });
 
   it("filters to allowed keys when provided", async () => {
