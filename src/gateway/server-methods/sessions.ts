@@ -32,7 +32,6 @@ import {
   listSessionsFromStore,
   loadCombinedSessionStoreForGateway,
   loadSessionEntry,
-  pruneLegacyStoreKeys,
   readSessionPreviewItemsFromTranscript,
   resolveGatewaySessionStoreTarget,
   resolveSessionModelRef,
@@ -43,31 +42,6 @@ import {
 } from "../session-utils.js";
 import { applySessionsPatchToStore } from "../sessions-patch.js";
 import { resolveSessionKeyFromResolveParams } from "../sessions-resolve.js";
-
-function migrateAndPruneSessionStoreKey(params: {
-  cfg: ReturnType<typeof loadConfig>;
-  key: string;
-  store: Record<string, SessionEntry>;
-}) {
-  const target = resolveGatewaySessionStoreTarget({
-    cfg: params.cfg,
-    key: params.key,
-    store: params.store,
-  });
-  const primaryKey = target.canonicalKey;
-  if (!params.store[primaryKey]) {
-    const existingKey = target.storeKeys.find((candidate) => Boolean(params.store[candidate]));
-    if (existingKey) {
-      params.store[primaryKey] = params.store[existingKey];
-    }
-  }
-  pruneLegacyStoreKeys({
-    store: params.store,
-    canonicalKey: primaryKey,
-    candidates: target.storeKeys,
-  });
-  return { target, primaryKey, entry: params.store[primaryKey] };
-}
 
 function archiveSessionTranscriptsForSession(params: {
   sessionId: string | undefined;
