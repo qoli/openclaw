@@ -186,3 +186,19 @@ export function findRoutedCommand(path: string[]): RouteSpec | null {
   }
   return null;
 }
+
+const CORE_COMMANDS_WITH_SUBCOMMANDS = [
+  "setup",
+  "onboard",
+  "configure",
+  "config",
+  "maintenance",
+  "message",
+  "memory",
+  "agent",
+  "browser",
+] as const;
+
+export function getCoreCliCommandsWithSubcommands(): string[] {
+  return [...CORE_COMMANDS_WITH_SUBCOMMANDS];
+}

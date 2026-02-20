@@ -245,6 +245,10 @@ export function getSubCliEntries(): SubCliEntry[] {
   return entries;
 }
 
+export function getSubCliCommandsWithSubcommands(): string[] {
+  return entries.map((entry) => entry.name);
+}
+
 function removeCommand(program: Command, command: Command) {
   const commands = program.commands as Command[];
   const index = commands.indexOf(command);
