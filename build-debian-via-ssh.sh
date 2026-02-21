@@ -133,8 +133,11 @@ elif ! ensure_rollup_native; then
   pnpm_exec install --force
 fi
 
+pnpm_exec install --force
 echo "[remote] running: pnpm ${pnpm_args[*]}"
 pnpm_exec "${pnpm_args[@]}"
+
+
 
 if [[ "$run_ui" == "1" ]]; then
   echo "[remote] running: pnpm ui:build"
