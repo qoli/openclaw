@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SsrFPolicy } from "../infra/net/ssrf.js";
@@ -30,23 +29,15 @@ type WebMediaOptions = {
   localRoots?: string[] | "any";
 };
 
-function getDefaultLocalRoots(): string[] {
-  const home = os.homedir();
-  return [
-    os.tmpdir(),
-    path.join(home, ".openclaw", "media"),
-    path.join(home, ".openclaw", "agents"),
-  ];
-}
-
 async function assertLocalMediaAllowed(
   mediaPath: string,
   localRoots: string[] | "any" | undefined,
 ): Promise<void> {
-  if (localRoots === "any") {
+  // Default: do not restrict local paths. Callers can opt in with explicit roots.
+  if (localRoots === "any" || localRoots === undefined) {
     return;
   }
-  const roots = localRoots ?? getDefaultLocalRoots();
+  const roots = localRoots;
   // Resolve symlinks so a symlink under /tmp pointing to /etc/passwd is caught.
   let resolved: string;
   try {
